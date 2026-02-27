@@ -571,16 +571,17 @@
         setBusy(false);
         var status = e.status;
         var data = e.data || {};
-        if (status === 503 && (data.code === 'NO_API_KEY' || data.error && data.error.indexOf('key') !== -1)) {
-          showError('Evaluation service is not configured yet. Please try again later.');
+        var detail = (data.details && String(data.details).trim()) ? ' ' + data.details : '';
+        if (status === 503 && (data.code === 'NO_API_KEY' || (data.error && data.error.indexOf('key') !== -1))) {
+          showError('Evaluation service is not configured yet. Please try again later.' + detail);
         } else if (status === 429) {
-          showError('Too many requests — try again in a minute.');
-        } else if (status === 401) {
-          showError('Something went wrong with the evaluation service. Please try again.');
+          showError('Too many requests — try again in a minute.' + detail);
+        } else if (status === 401 || (detail && (detail.toLowerCase().indexOf('invalid') !== -1 || detail.toLowerCase().indexOf('unauthorized') !== -1))) {
+          showError('Invalid API key. Check OPENROUTER_API_KEY in Vercel.' + detail);
         } else if (status >= 500 || e.message === 'Failed to fetch') {
-          showError('Punch dropped the banana 🍌 — something went wrong. Please try again!');
+          showError('Punch dropped the banana 🍌 — something went wrong. Please try again!' + detail);
         } else {
-          showError(data.error || 'Something went wrong. Please try again!');
+          showError((data.error || 'Something went wrong. Please try again!') + detail);
         }
         console.error('Analyze error:', e);
       });
