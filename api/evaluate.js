@@ -6,14 +6,23 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = 'nvidia/nemotron-nano-12b-v2-vl:free';
 
 // Load scoring guideline from scoring.md (master prompt for every evaluation)
+// Try api/scoring.md first (deployed with function on Vercel), then repo root.
 let cachedScoringPrompt = null;
 function getScoringPrompt() {
   if (cachedScoringPrompt) return cachedScoringPrompt;
-  try {
-    const scoringPath = path.join(__dirname, '..', 'scoring.md');
-    cachedScoringPrompt = fs.readFileSync(scoringPath, 'utf8');
-  } catch (_) {
-    // Fallback if file missing (e.g. wrong cwd)
+  const paths = [
+    path.join(__dirname, 'scoring.md'),
+    path.join(__dirname, '..', 'scoring.md'),
+  ];
+  for (const scoringPath of paths) {
+    try {
+      if (fs.existsSync(scoringPath)) {
+        cachedScoringPrompt = fs.readFileSync(scoringPath, 'utf8');
+        break;
+      }
+    } catch (_) {}
+  }
+  if (!cachedScoringPrompt) {
     cachedScoringPrompt = `You are Punch — a baby monkey evaluating a potential human parent. Score 1-100. Reply with only valid JSON: {"score":<1-100>,"verdict":"<5-8 words>","traits":[{"emoji":"🍌","label":"trait"}],"analysis":"<2-3 sentences>","punch_quote":"<one sentence>"}. Never assign negative traits.`;
   }
   return cachedScoringPrompt;
@@ -96,11 +105,21 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
+    const rawBody = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch (_) {
+      console.error('OpenRouter non-JSON response:', rawBody.slice(0, 200));
+      return res.status(502).json({
+        error: 'OpenRouter request failed',
+        details: 'Invalid response from provider.',
+      });
+    }
 
     if (!response.ok) {
       const status = response.status;
-      const message = data.error?.message || data.error || JSON.stringify(data);
+      const message = data.error?.message || data.error || rawBody.slice(0, 200);
       return res.status(status >= 400 && status < 600 ? status : 502).json({
         error: 'OpenRouter request failed',
         details: message,
@@ -119,6 +138,7 @@ module.exports = async function handler(req, res) {
     console.error('Evaluate error:', err);
     return res.status(500).json({
       error: 'Punch dropped the banana — something went wrong.',
+      details: err.message || undefined,
       code: 'SERVER_ERROR',
     });
   }
