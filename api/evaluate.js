@@ -28,10 +28,38 @@ function getScoringPrompt() {
   return cachedScoringPrompt;
 }
 
+function tryParseJson(str) {
+  try {
+    return JSON.parse(str);
+  } catch (_) {
+    return null;
+  }
+}
+
 function parseResult(rawText) {
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Could not find JSON in response');
-  const result = JSON.parse(jsonMatch[0]);
+
+  let str = jsonMatch[0];
+  let result = tryParseJson(str);
+
+  // Fix common LLM JSON errors: trailing commas before ] or }
+  if (!result && str) {
+    str = str.replace(/,(\s*[}\]])/g, '$1');
+    result = tryParseJson(str);
+  }
+
+  if (!result) {
+    // Return a safe default so we don't 500 on malformed model output
+    return {
+      score: 50,
+      verdict: 'Punch is still thinking!',
+      traits: [{ emoji: '🐒', label: 'monkey vibe' }],
+      analysis: "Punch peeked at your photo but got a little tangled in the vines. You still seem like good parent material!",
+      punch_quote: 'Try snapping again — I promise I\'ll pay attention this time!',
+    };
+  }
+
   if (typeof result.score !== 'number') result.score = 50;
   result.score = Math.max(1, Math.min(100, Math.round(result.score)));
   if (!result.verdict) result.verdict = 'Punch is still thinking!';
