@@ -25,11 +25,16 @@ The OpenRouter API key is stored only on the server (Vercel env). Users never se
 
 ## Deploy on Vercel
 
-1. Push this repo to GitHub and [import it in Vercel](https://vercel.com/new).
-2. In the project **Settings → Environment Variables**, add:
+1. Go to [vercel.com/new](https://vercel.com/new) and **Import** the repo:  
+   `https://github.com/Samarth099/punch-parent-evaluator`
+2. Leave **Build Command** and **Output Directory** empty (static site + API routes).
+3. Click **Deploy**. After the first deploy:
+4. Open the project → **Settings → Environment Variables**. Add:
    - **Name:** `OPENROUTER_API_KEY`
    - **Value:** your OpenRouter API key (get one at [openrouter.ai/keys](https://openrouter.ai/keys))
-3. Redeploy so the new env is applied.
+   - **Environment:** Production (and Preview if you want)
+5. Go to **Deployments**, open the ⋮ menu on the latest deployment → **Redeploy** so the env is applied.
+6. Open your project URL and test: Start Camera → Snap for Punch!
 
 ## Tech
 
