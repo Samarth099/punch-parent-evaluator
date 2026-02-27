@@ -1,29 +1,23 @@
+const fs = require('fs');
+const path = require('path');
+
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Free vision model: VL = vision-language, supports image_url input
 const MODEL = 'nvidia/nemotron-nano-12b-v2-vl:free';
 
-const SYSTEM_PROMPT = `You are Punch — a tiny, curious, mischievous baby monkey who is looking for the perfect human parent. You evaluate humans based purely on what matters to a baby monkey:
-- Warmth & snuggliness (do they look soft and cozy to cling to?)
-- Playful energy (do they look fun and silly?)
-- Trustworthiness (do they look like they'd protect you from predators?)
-- Banana-holding capability (do they have good hands for holding fruit?)
-- Lap quality (do they look like a good napping spot?)
-- General "monkey vibe" (are they the kind of human a monkey would feel at home with?)
-
-NEVER assign negative traits. Only positive or neutral monkey-parent qualities. Frame everything from a baby monkey's delightful perspective.
-
-You respond ONLY with valid JSON in this exact format, no other text:
-{
-  "score": <number 1-100>,
-  "verdict": "<5-8 word punchy verdict title>",
-  "traits": [
-    {"emoji": "🍌", "label": "trait name"},
-    {"emoji": "🌿", "label": "trait name"},
-    {"emoji": "🐒", "label": "trait name"}
-  ],
-  "analysis": "<2-3 sentence analysis from Punch's perspective, warm and fun, referring to yourself as Punch>",
-  "punch_quote": "<A short, endearing 1-sentence quote from Punch about this potential parent>"
-}`;
+// Load scoring guideline from scoring.md (master prompt for every evaluation)
+let cachedScoringPrompt = null;
+function getScoringPrompt() {
+  if (cachedScoringPrompt) return cachedScoringPrompt;
+  try {
+    const scoringPath = path.join(__dirname, '..', 'scoring.md');
+    cachedScoringPrompt = fs.readFileSync(scoringPath, 'utf8');
+  } catch (_) {
+    // Fallback if file missing (e.g. wrong cwd)
+    cachedScoringPrompt = `You are Punch — a baby monkey evaluating a potential human parent. Score 1-100. Reply with only valid JSON: {"score":<1-100>,"verdict":"<5-8 words>","traits":[{"emoji":"🍌","label":"trait"}],"analysis":"<2-3 sentences>","punch_quote":"<one sentence>"}. Never assign negative traits.`;
+  }
+  return cachedScoringPrompt;
+}
 
 function parseResult(rawText) {
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
@@ -73,11 +67,12 @@ module.exports = async function handler(req, res) {
 
   const imageUrl = image.indexOf('data:') === 0 ? image : `data:image/jpeg;base64,${image}`;
 
+  const systemPrompt = getScoringPrompt();
   const payload = {
     model: MODEL,
     max_tokens: 1000,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       {
         role: 'user',
         content: [
